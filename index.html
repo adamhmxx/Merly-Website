@@ -259,16 +259,20 @@
 
   /* Polaroid that follows the pointer over cards that have a photo.
      Outer element glides after the cursor; inner card pops in with a springy scale. */
-  /* Photo stack on a card and the full-screen viewer: touch screens only (desktop keeps the hover polaroid) */
-  .stack { display: none; position: relative; width: 64px; height: 56px; margin-top: 4px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .stack-img { position: absolute; left: 0; top: 4px; width: 44px; height: 44px; border-radius: 9px; border: 3px solid #fff; background: #ece6dc; overflow: hidden;
-    box-shadow: 0 2px 8px rgba(31, 21, 15, .16); z-index: calc(3 - var(--i));
-    transform: translate(calc(var(--i) * 8px), calc(var(--i) * -3px)) rotate(calc(var(--i) * 5deg - 2deg)); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+  /* Photo stack on a card and the full-screen viewer: touch screens only (desktop keeps the hover polaroid).
+     The stack floats in front of the card, hanging over its bottom-right corner, and bobs gently. */
+  .stack { display: none; position: absolute; right: 14px; bottom: -16px; z-index: 4; width: 70px; height: 62px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; animation: stack-float 3.8s ease-in-out infinite alternate; }
+  .card:nth-child(even) .stack { animation-duration: 4.4s; animation-delay: -1.7s; }
+  @keyframes stack-float { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-4px) rotate(1.5deg); } }
+  .stack-img { position: absolute; right: 0; bottom: 0; width: 46px; height: 46px; border-radius: 9px; border: 3px solid #fff; background: #ece6dc; overflow: hidden;
+    box-shadow: 0 6px 14px rgba(31, 21, 15, .22); z-index: calc(3 - var(--i));
+    transform: translate(calc(var(--i) * -9px), calc(var(--i) * -4px)) rotate(calc(4deg - var(--i) * 6deg)); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
   .stack-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .stack:active .stack-img { transform: translate(calc(var(--i) * 11px), calc(var(--i) * -4px)) rotate(calc(var(--i) * 7deg - 3deg)) scale(.95); }
-  .stack-n { position: absolute; right: 0; bottom: 0; z-index: 5; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--maroon); color: #fff; font-size: 11px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
+  .stack:active .stack-img { transform: translate(calc(var(--i) * -12px), calc(var(--i) * -5px)) rotate(calc(6deg - var(--i) * 8deg)) scale(.94); }
+  .stack-n { position: absolute; right: -6px; top: 6px; z-index: 5; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--maroon); color: #fff; font-size: 11px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
   .stack:focus-visible { outline: 2px solid var(--maroon); outline-offset: 3px; border-radius: 10px; }
-  @media (hover: none) { .stack { display: block; } }
+  @media (hover: none) { .card { position: relative; } .card.has-stack { padding-bottom: 44px; } .stack { display: block; } }
 
   .viewer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center;
     background: rgba(24, 15, 10, calc(.86 * var(--drag, 1))); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
@@ -287,7 +291,7 @@
   .viewer-dots { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; gap: 7px; pointer-events: none; }
   .viewer-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .35); transition: background .2s, transform .2s; }
   .viewer-dots i.on { background: #fff; transform: scale(1.25); }
-  @media (prefers-reduced-motion: reduce) { .viewer, .viewer-track, .viewer-slide img, .stack-img { transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .viewer, .viewer-track, .viewer-slide img, .stack-img { transition: none !important; } .stack { animation: none; } }
 
   .polaroid {
     --x: 0px; --y: 0px;
@@ -448,7 +452,7 @@ function card(c) {
   const stack = photos.length ? `<button type="button" class="stack" aria-label="${esc(UI[lang].viewPhotos)} (${photos.length})">${
     photos.slice(0, 3).map((p, i) => `<span class="stack-img" style="--i:${i}"><img src="${esc(p)}" alt="" loading="lazy" draggable="false"></span>`).join("")
   }${photos.length > 1 ? `<span class="stack-n" aria-hidden="true">${photos.length}</span>` : ""}</button>` : "";
-  return `<li class="card" data-photos="${esc(JSON.stringify(photos))}">
+  return `<li class="card${photos.length ? " has-stack" : ""}" data-photos="${esc(JSON.stringify(photos))}">
     ${icon}
     <div class="card-body">
       <div class="card-head"><h3>${esc(L(c.title))}</h3><span class="org">${esc(L(c.org))}</span></div>
