@@ -76,7 +76,7 @@ function cleanContent(c) {
   if (!c || typeof c !== "object") throw new Error("invalid_content");
   const cards = list => (Array.isArray(list) ? list : []).slice(0, 40).map(x => ({
     title: bi(x.title, 200), org: bi(x.org, 200), desc: bi(x.desc, 1500),
-    year: str(x.year, 40), icon: str(x.icon, 30), tint: color(x.tint),
+    year: str(x.year, 40), icon: str(x.icon, 30), tint: color(x.tint), auto: x.auto === true,
     photos: (Array.isArray(x.photos) ? x.photos : []).filter(p => typeof p === "string" && PHOTO_OK.test(p)).slice(0, 20)
   }));
   const links = c.links || {};
