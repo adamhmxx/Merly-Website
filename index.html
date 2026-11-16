@@ -324,6 +324,17 @@
     transform: rotate(var(--r)) scale(1);
     transition: opacity .12s, transform .5s cubic-bezier(.34, 1.9, .5, 1);
   }
+  .polaroid-ph { display: none; width: 100%; aspect-ratio: 1; border-radius: 10px; place-items: center;
+    background:
+      radial-gradient(circle at 24% 26%, rgba(255,255,255,.55) 0 7%, transparent 7.5%),
+      radial-gradient(circle at 78% 72%, rgba(255,255,255,.4) 0 11%, transparent 11.5%),
+      radial-gradient(circle at 80% 22%, rgba(255,255,255,.35) 0 4%, transparent 4.5%),
+      linear-gradient(145deg, var(--ph, #fbcfe8), color-mix(in srgb, var(--ph, #fbcfe8) 55%, #fff)); }
+  .polaroid.ph .polaroid-ph { display: grid; }
+  .polaroid.ph img { display: none; }
+  .polaroid-ph svg { width: 46%; height: 46%; fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    filter: drop-shadow(0 2px 3px rgba(31, 21, 15, .18)); }
+  .polaroid-ph svg > * { stroke-dasharray: 1 2; }
   .polaroid img {
     display: block;
     width: 100%;
@@ -398,7 +409,7 @@
   <div class="viewer-track" id="viewer-track"></div>
   <div class="viewer-dots" id="viewer-dots" aria-hidden="true"></div>
 </div>
-<div class="polaroid" id="polaroid" aria-hidden="true"><div class="polaroid-in"><img alt=""></div></div>
+<div class="polaroid" id="polaroid" aria-hidden="true"><div class="polaroid-in"><img alt=""><div class="polaroid-ph"></div></div></div>
 
 <canvas class="clay-light" aria-hidden="true"></canvas><div class="clay-grain" aria-hidden="true"></div>
 <svg class="clay-filter" aria-hidden="true"><defs id="clay-defs"></defs></svg>
@@ -661,11 +672,19 @@ function remeasurePhys() {
    On touch, tapping a card toggles it. */
 const pol = document.getElementById("polaroid");
 const polIn = pol.querySelector(".polaroid-in"), polImg = pol.querySelector("img");
-const profileSrc = () => document.getElementById("profile-img").src;
+const polPh = pol.querySelector(".polaroid-ph");
+const PH_TINTS = ["#fbcfe8", "#bfdbfe", "#d9f99d", "#ddd6fe", "#fde047", "#6ee7b7", "#fb923c"];   // the site's own pastel palette
 const canHover = matchMedia("(hover: hover)");
 const FLIP_EVERY = 60;    // px of scrolling per photo
 let polCard = null, polPhotos = [], polIdx = 0, scrollAcc = 0, lastScrollY = scrollY, mouse = null, polW = 0, polH = 0;
-const photosOf = c => { try { const a = JSON.parse(c.dataset.photos || "[]"); return a.length ? a : [profileSrc()]; } catch (e) { return [profileSrc()]; } };
+const photosOf = c => { try { return JSON.parse(c.dataset.photos || "[]"); } catch (e) { return []; } };
+/* A card without photos shows a soft placeholder in its own colour, with its own icon, instead of a picture */
+function fillPlaceholder(cardEl) {
+  const badge = cardEl.querySelector(".badge");
+  const idx = [...cardEl.parentElement.children].indexOf(cardEl);
+  polPh.style.setProperty("--ph", (badge && badge.style.background) || PH_TINTS[(idx + 3) % PH_TINTS.length]);
+  polPh.innerHTML = badge ? badge.innerHTML : "";
+}
 function pop() {
   pol.classList.remove("show"); void pol.offsetWidth;   // replay the springy scale-up
   polIn.style.setProperty("--r", ((Math.random() < .5 ? -1 : 1) * (2 + Math.random() * 4)).toFixed(1) + "deg");
@@ -676,7 +695,8 @@ function showPolaroid(cardEl) {
     polCard = cardEl;
     polPhotos = photosOf(cardEl);
     polIdx = 0; scrollAcc = 0;
-    polImg.src = polPhotos[0];
+    pol.classList.toggle("ph", !polPhotos.length);
+    if (polPhotos.length) polImg.src = polPhotos[0]; else fillPlaceholder(cardEl);
     pop();
     polW = pol.offsetWidth; polH = pol.offsetHeight;   // fixed size: measure once per card, not on every move
   }
