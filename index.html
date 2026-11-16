@@ -336,6 +336,10 @@
   .polaroid-ph svg { width: 46%; height: 46%; fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
     filter: drop-shadow(0 2px 3px rgba(31, 21, 15, .18)); }
   .polaroid-ph svg > * { stroke-dasharray: 1 2; }
+  /* Trail pieces (cards with several photos): smaller, no gliding, and they drift away instead of shrinking */
+  .polaroid.trail { width: 150px; transition: none; will-change: transform; }
+  .polaroid.trail .polaroid-in { padding: 8px 8px 26px; border-radius: 14px; }
+  .polaroid.trail.out .polaroid-in { opacity: 0; transform: rotate(var(--r)) translateY(10px) scale(.92); transition: opacity .55s ease, transform .55s ease; }
   .polaroid img {
     display: block;
     width: 100%;
@@ -709,7 +713,7 @@ function nextPhoto() {
   polImg.src = polPhotos[polIdx];
   pop();
 }
-function hidePolaroid() { pol.classList.remove("show"); polCard = null; }
+function hidePolaroid() { pol.classList.remove("show"); polCard = null; trail.card = null; }
 function placePolaroid(x, y) {
   const w = polW, h = polH;
   let px = x + 28, py = y - h / 2;
@@ -719,9 +723,50 @@ function placePolaroid(x, y) {
   pol.style.setProperty("--x", px + "px");
   pol.style.setProperty("--y", py + "px");
 }
+/* Several photos on one card: instead of one polaroid, a trail of them is scattered along the cursor's path.
+   Each pops in with the same springy scale, rests a moment, then drifts away. A small pool is recycled. */
+const TRAIL_N = 9, TRAIL_GAP = 96, TRAIL_EVERY = 100, TRAIL_LIFE = 850;
+const trail = { pool: [], n: -1, card: null, photos: [], idx: -1, lx: 0, ly: 0, t0: 0, z: 30, h: 0, w: 150, seen: new Set() };
+function trailSpawn(x, y) {
+  if (!trail.pool.length) for (let k = 0; k < TRAIL_N; k++) {
+    const el = document.createElement("div");
+    el.className = "polaroid trail"; el.setAttribute("aria-hidden", "true");
+    el.innerHTML = '<div class="polaroid-in"><img alt="" draggable="false"></div>';
+    document.body.append(el);
+    trail.pool.push({ el, inn: el.firstChild, img: el.querySelector("img"), t: 0 });
+  }
+  const p = trail.pool[trail.n = (trail.n + 1) % TRAIL_N];
+  clearTimeout(p.t);
+  p.el.classList.remove("show", "out");
+  p.img.src = trail.photos[trail.idx = (trail.idx + 1) % trail.photos.length];
+  if (!trail.h) trail.h = p.el.offsetHeight || 168;
+  const px = Math.max(12, Math.min(innerWidth - trail.w - 12, x - trail.w / 2 + (Math.random() - .5) * 28));
+  const py = Math.max(12, Math.min(innerHeight - trail.h - 12, y - trail.h / 2 + (Math.random() - .5) * 28));
+  p.el.style.setProperty("--x", px + "px"); p.el.style.setProperty("--y", py + "px");
+  p.el.style.zIndex = ++trail.z;
+  p.inn.style.setProperty("--r", ((Math.random() < .5 ? -1 : 1) * (2 + Math.random() * 6)).toFixed(1) + "deg");
+  void p.el.offsetWidth;   // replay the springy scale-up
+  p.el.classList.add("show");
+  p.t = setTimeout(() => p.el.classList.add("out"), TRAIL_LIFE);
+  trail.lx = x; trail.ly = y; trail.t0 = performance.now();
+}
+function trailMove(x, y, c, photos) {
+  if (trail.card !== c) {
+    trail.card = c; trail.photos = photos; trail.idx = -1;
+    photos.forEach(u => { if (!trail.seen.has(u)) { trail.seen.add(u); new Image().src = u; } });   // warm the cache so each one pops in complete
+    trailSpawn(x, y); return;
+  }
+  if (Math.hypot(x - trail.lx, y - trail.ly) >= TRAIL_GAP && performance.now() - trail.t0 >= TRAIL_EVERY) trailSpawn(x, y);
+}
 function updateAt(x, y, target) {
   const c = target && target.closest ? target.closest(".card[data-photos]") : null;
-  if (!c) { if (polCard) hidePolaroid(); return; }
+  if (!c) { if (polCard) hidePolaroid(); trail.card = null; return; }
+  const photos = c._photos || (c._photos = photosOf(c));
+  if (photos.length > 1) {
+    if (polCard) { pol.classList.remove("show"); polCard = null; }
+    trailMove(x, y, c, photos); return;
+  }
+  trail.card = null;
   const fresh = polCard !== c;
   showPolaroid(c);
   if (fresh) pol.style.transition = "none";   // appear at the cursor, then glide after it
@@ -852,7 +897,7 @@ const CLAY = {
   follow: 0.3,     // lag of the fingertip behind the cursor (0 = none)
   shadow: 0.21, highlight: 0.21, light: 130,    // lighting strength and direction (deg)
   grain: 0.2,      // strength of the fine clay grain on the page (0 = none)
-  cell: 7          // px per simulation cell: smaller is smoother but heavier
+  cell: 6          // px per simulation cell: smaller is smoother but heavier
 };
 (() => {
   document.querySelector(".clay-grain").style.opacity = CLAY.grain;   // the grain shows on every device
@@ -1035,7 +1080,7 @@ const CLAY = {
     // 3. soften the surface and turn its slope into displacement and light, only where it changed
     if (changed && (has || drawn)) {
       let rx0, rx1, ry0, ry1;
-      if (has) { rx0 = Math.max(1, x0 - 3); rx1 = Math.min(W - 2, x1 + 3); ry0 = Math.max(1, y0 - 3); ry1 = Math.min(H - 2, y1 + 3); }
+      if (has) { rx0 = Math.max(1, x0 - 5); rx1 = Math.min(W - 2, x1 + 5); ry0 = Math.max(1, y0 - 5); ry1 = Math.min(H - 2, y1 + 5); }
       if (drawn) {
         if (!has) [rx0, rx1, ry0, ry1] = drawn;
         else { rx0 = Math.min(rx0, drawn[0]); rx1 = Math.max(rx1, drawn[1]); ry0 = Math.min(ry0, drawn[2]); ry1 = Math.max(ry1, drawn[3]); }
@@ -1045,6 +1090,9 @@ const CLAY = {
         tmp[k] = (hh[k - 1] + 2 * hh[k] + hh[k + 1]) * 0.25;
       }
       for (let j = ry0; j <= ry1; j++) for (let i = rx0; i <= rx1; i++) { const k = j * W + i; b[k] = (tmp[k - W] + 2 * tmp[k] + tmp[k + W]) * 0.25; }
+      // a second soft pass keeps the finer grid as silky as the coarse one was: no facets in the bend or the light
+      for (let j = ry0; j <= ry1; j++) for (let i = rx0 + 1; i < rx1; i++) { const k = j * W + i; tmp[k] = (b[k - 1] + 2 * b[k] + b[k + 1]) * 0.25; }
+      for (let j = ry0 + 1; j < ry1; j++) for (let i = rx0 + 1; i < rx1; i++) { const k = j * W + i; b[k] = (tmp[k - W] + 2 * tmp[k] + tmp[k + W]) * 0.25; }
       const md = mapImg.data, ld = lightImg.data, sh = CLAY.shadow, hl = CLAY.highlight;
       for (let j = ry0; j <= ry1; j++) for (let i = rx0; i <= rx1; i++) {
         const k = j * W + i, p = k * 4;
@@ -1061,7 +1109,7 @@ const CLAY = {
       lctx.putImageData(lightImg, 0, 0, rx0, ry0, w, h);
       mctx.putImageData(mapImg, 0, 0, rx0, ry0, w, h);
       mapDirty = true;
-      drawn = has ? [Math.max(1, x0 - 3), Math.min(W - 2, x1 + 3), Math.max(1, y0 - 3), Math.min(H - 2, y1 + 3)] : null;
+      drawn = has ? [Math.max(1, x0 - 5), Math.min(W - 2, x1 + 5), Math.max(1, y0 - 5), Math.min(H - 2, y1 + 5)] : null;
     }
     lightCv.style.opacity = has ? "1" : "0";
 
