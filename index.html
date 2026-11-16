@@ -1,5 +1,8 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body><title>Arvinna Ryandita Merly</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Arvinna Ryandita Merly: teacher, educator and public relations. Education, experience and skills.">
+<meta property="og:title" content="Arvinna Ryandita Merly"><meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23370101'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' fill='%23fcfaf6' font-family='Georgia,serif' font-style='italic'%3EA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap">
@@ -257,8 +260,6 @@
   }
   .chips.phys .chip:active { cursor: grabbing; }
 
-  /* Polaroid that follows the pointer over cards that have a photo.
-     Outer element glides after the cursor; inner card pops in with a springy scale. */
   /* Photo stack on a card and the full-screen viewer: touch screens only (desktop keeps the hover polaroid).
      The stack floats in front of the card, hanging over its bottom-right corner, and bobs gently. */
   .stack { display: none; position: absolute; right: 14px; bottom: -16px; z-index: 4; width: 70px; height: 62px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer;
@@ -293,6 +294,8 @@
   .viewer-dots i.on { background: #fff; transform: scale(1.25); }
   @media (prefers-reduced-motion: reduce) { .viewer, .viewer-track, .viewer-slide img, .stack-img { transition: none !important; } .stack { animation: none; } }
 
+  /* Polaroid that follows the pointer over cards that have a photo.
+     Outer element glides after the cursor; inner card pops in with a springy scale. */
   .polaroid {
     --x: 0px; --y: 0px;
     position: fixed;
@@ -477,16 +480,20 @@ function card(c) {
   </li>`;
 }
 
+/* render() only touches the DOM for what actually changed, so the live preview and language switch never
+   rebuild (or restart the animation of) parts that are identical. Returns true when the chips changed. */
+let renderGen = 0;
+const painted = {};
+function paint(key, val, apply) { if (painted[key] === val) return false; painted[key] = val; apply(val); return true; }
 function render(state = STATE) {
-  const t = UI[lang];
+  const t = UI[lang], links = state.links || {};
   document.documentElement.lang = lang;
-  document.getElementById("profile-img").src = photoSrc(state.profilePhoto) || "";
-  document.getElementById("t-hello").textContent = L(state.hello);
-  document.getElementById("t-headline").innerHTML = `${esc(L(state.line1))} <span class="shine">${esc(L(state.shine))}</span><br><em>${esc(L(state.line2))}</em>`;
-  document.getElementById("t-sub").textContent = L(state.sub);
+  paint("photo", photoSrc(state.profilePhoto) || "", v => { document.getElementById("profile-img").src = v; });
+  paint("hello", L(state.hello), v => { document.getElementById("t-hello").textContent = v; });
+  paint("headline", `${esc(L(state.line1))} <span class="shine">${esc(L(state.shine))}</span><br><em>${esc(L(state.line2))}</em>`, v => { document.getElementById("t-headline").innerHTML = v; });
+  paint("sub", L(state.sub), v => { document.getElementById("t-sub").textContent = v; });
   document.getElementById("edu-title").textContent = t.education;
   document.getElementById("exp-title").textContent = t.experience;
-  const links = state.links || {};
   document.getElementById("ig-link").href = safeUrl(links.instagram);
   document.getElementById("li-link").href = safeUrl(links.linkedin);
   document.getElementById("email-btn").title = links.email || "";
@@ -497,18 +504,21 @@ function render(state = STATE) {
   const sw = document.querySelector(".switch");
   sw.setAttribute("aria-checked", String(lang === "id"));
   sw.setAttribute("aria-label", lang === "id" ? "English" : "Bahasa Indonesia");
-  document.getElementById("edu").innerHTML = (state.edu || []).map(card).join("");
-  document.getElementById("exp").innerHTML = (state.exp || []).map(card).join("");
-  document.getElementById("chips").innerHTML = (state.chips || []).map(c => `<span class="chip" style="background:${safeColor(c.color)}">${esc(L(c))}</span>`).join("");
+  let dom = false;
+  dom = paint("edu", (state.edu || []).map(card).join(""), v => { document.getElementById("edu").innerHTML = v; }) || dom;
+  dom = paint("exp", (state.exp || []).map(card).join(""), v => { document.getElementById("exp").innerHTML = v; }) || dom;
+  const chips = paint("chips", (state.chips || []).map(c => `<span class="chip" style="background:${safeColor(c.color)}">${esc(L(c))}</span>`).join(""), v => { document.getElementById("chips").innerHTML = v; });
+  if (dom || chips) renderGen++;   // tells the clay effect to re-collect its blocks
+  return chips;
 }
 
 function setLang(next) {
   if (next === lang) return;
   lang = next;
   try { localStorage.setItem("arvinna-lang", lang); } catch (e) {}
-  render();
+  const chipsChanged = render();
   hidePolaroid();
-  startPhys();
+  if (chipsChanged) startPhys();
 }
 document.querySelectorAll(".lang-label").forEach(b => b.addEventListener("click", () => setLang(b.dataset.lang)));
 document.querySelector(".switch").addEventListener("click", () => setLang(lang === "en" ? "id" : "en"));
@@ -697,11 +707,12 @@ function updateAt(x, y, target) {
   placePolaroid(x, y);
   if (fresh) requestAnimationFrame(() => { pol.style.transition = ""; });
 }
+let polRaf = 0, polTarget = null;
 document.addEventListener("pointermove", e => {
   if (e.pointerType !== "mouse") return;
-  mouse = { x: e.clientX, y: e.clientY };
-  updateAt(e.clientX, e.clientY, e.target);
-});
+  mouse = { x: e.clientX, y: e.clientY }; polTarget = e.target;
+  if (!polRaf) polRaf = requestAnimationFrame(() => { polRaf = 0; if (mouse) updateAt(mouse.x, mouse.y, polTarget); });   // coalesce bursts of events into one update per frame
+}, { passive: true });
 document.documentElement.addEventListener("mouseleave", () => { mouse = null; hidePolaroid(); });
 window.addEventListener("scroll", () => {
   const dy = Math.abs(scrollY - lastScrollY); lastScrollY = scrollY;
@@ -769,13 +780,15 @@ vTrack.addEventListener("click", e => { if (e.target.tagName !== "IMG") closeVie
     if (!vertical && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(mx) * 1.4) vertical = true;
     if (vertical && dy > 0) { vTrack.style.transition = "none"; vTrack.style.transform = `translateY(${dy * 0.7}px)`; viewer.style.setProperty("--drag", String(Math.max(0, 1 - dy / 420))); }
   }, { passive: true });
-  vTrack.addEventListener("touchend", () => {
+  const release = cancel => {
     if (y0 == null) return;
     vTrack.style.transition = "";
-    if (vertical && dy > 90) closeViewer();
+    if (!cancel && vertical && dy > 90) closeViewer();
     else { vTrack.style.transform = ""; viewer.style.removeProperty("--drag"); }
     y0 = null;
-  }, { passive: true });
+  };
+  vTrack.addEventListener("touchend", () => release(false), { passive: true });
+  vTrack.addEventListener("touchcancel", () => release(true), { passive: true });
 })();
 document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest(".stack");
@@ -928,12 +941,19 @@ const CLAY = {
   const set = (slot, key, val) => { if (slot[key] !== val) { slot.img.setAttribute(key, val); slot[key] = val; } };
   function release(el) { const s = used.get(el); if (!s) return; el.style.filter = ""; s.free = true; used.delete(el); }
   function releaseAll() { used.forEach((s, el) => { el.style.filter = ""; s.free = true; }); used.clear(); }
+  let blocks = [], blocksGen = -1;
   function bend(left, top, right, bottom) {
-    const hit = new Set();
-    for (const el of document.querySelectorAll(BLOCKS)) {
+    if (blocksGen !== renderGen) { blocks = [...document.querySelectorAll(BLOCKS)]; blocksGen = renderGen; }
+    // read every rect first, then write: one layout per frame instead of one per newly bent block
+    const hits = [], rects = [];
+    for (const el of blocks) {
       const q = el.getBoundingClientRect();
       if (q.right < left || q.left > right || q.bottom < top || q.top > bottom || !q.width) continue;
-      hit.add(el);
+      hits.push(el); rects.push(q);
+    }
+    const hit = new Set(hits);
+    hits.forEach((el, n) => {
+      const q = rects[n];
       let s = used.get(el);
       if (!s) {
         s = pool.find(p => p.free) || pool[pool.push(makeFilter(pool.length)) - 1];
@@ -945,7 +965,7 @@ const CLAY = {
       set(s, "href", mapUrl);
       set(s, "x", (-q.left - C).toFixed(1));
       set(s, "y", (-q.top - C).toFixed(1));
-    }
+    });
     used.forEach((s, el) => { if (!hit.has(el)) release(el); });
   }
 
@@ -1029,7 +1049,9 @@ const CLAY = {
       let fresh = false;
       // full frame rate while it settles, so the return glides
       if (mapDirty && now - lastMap > (moving ? 32 : 15)) { mapUrl = mapCv.toDataURL(); lastMap = now; mapDirty = false; fresh = true; }
-      if (mapUrl && (fresh || scrolled || rows || [...used.values()].some(s => s.k !== blend))) bend((x0 - 2) * C, (y0 - 2) * C, (x1 + 1) * C, (y1 + 1) * C);
+      let stale = false;
+      for (const s of used.values()) if (s.k !== blend) { stale = true; break; }
+      if (mapUrl && (fresh || scrolled || rows || stale)) bend((x0 - 2) * C, (y0 - 2) * C, (x1 + 1) * C, (y1 + 1) * C);
     } else if (used.size) releaseAll();
 
     if (has || moving) raf = requestAnimationFrame(frame);    // stops by itself once the clay is flat and the cursor still
@@ -1066,7 +1088,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasureP
 window.addEventListener("message", e => {
   if (e.origin !== location.origin || !e.data || e.data.type !== "cms-draft" || !e.data.draft) return;
   window.cmsDraft = e.data.draft;
-  render(e.data.draft); hidePolaroid(); startPhys();
+  const chipsChanged = render(e.data.draft); hidePolaroid(); if (chipsChanged) startPhys();
 });
 
 /* No copying, cutting, dragging or right-click saving of the page content */
