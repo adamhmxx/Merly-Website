@@ -257,44 +257,54 @@
     left: 0;
     top: 0;
     cursor: grab;
-    touch-action: none;
+    touch-action: pan-y;   /* a quick vertical swipe scrolls the page; holding the chip picks it up (see the app script) */
     will-change: transform;
   }
   .chips.phys .chip:active { cursor: grabbing; }
 
   /* Photo stack on a card and the full-screen viewer: touch screens only (desktop keeps the hover polaroid).
-     The stack floats in front of the card, hanging over its bottom-right corner, and bobs gently. */
-  .stack { display: none; position: absolute; right: 14px; bottom: -16px; z-index: 4; width: 70px; height: 62px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer;
-    -webkit-tap-highlight-color: transparent; animation: stack-float 3.8s ease-in-out infinite alternate; }
-  .card:nth-child(even) .stack { animation-duration: 4.4s; animation-delay: -1.7s; }
-  @keyframes stack-float { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-4px) rotate(1.5deg); } }
-  .stack-img { position: absolute; right: 0; bottom: 0; width: 46px; height: 46px; border-radius: 9px; border: 3px solid #fff; background: #ece6dc; overflow: hidden;
+     The stack hangs over the card's bottom-right corner and gives a small bouncy hop every few seconds, as a hint to tap it. */
+  .stack { display: none; position: absolute; right: 14px; bottom: -22px; z-index: 4; width: 92px; height: 84px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transform-origin: 70% 100%; animation: stack-hop 3.6s ease-in-out infinite; }
+  .card:nth-child(2n) .stack { animation-delay: -1.2s; }
+  .card:nth-child(3n) .stack { animation-delay: -2.4s; }
+  @keyframes stack-hop {
+    0%, 70%, 100% { transform: none; }
+    75% { transform: translateY(1px) scale(1.04, .95); }
+    81% { transform: translateY(-7px) rotate(-3deg) scale(.98, 1.03); }
+    87% { transform: translateY(0) scale(1.03, .97); }
+    92% { transform: translateY(-2px) rotate(1deg); }
+    96% { transform: none; }
+  }
+  .stack-img { position: absolute; right: 0; bottom: 0; width: 64px; height: 64px; border-radius: 11px; border: 3px solid #fff; background: #ece6dc; overflow: hidden;
     box-shadow: 0 6px 14px rgba(31, 21, 15, .22); z-index: calc(3 - var(--i));
-    transform: translate(calc(var(--i) * -9px), calc(var(--i) * -4px)) rotate(calc(4deg - var(--i) * 6deg)); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+    transform: translate(calc(var(--i) * -11px), calc(var(--i) * -5px)) rotate(calc(4deg - var(--i) * 6deg)); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
   .stack-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .stack:active .stack-img { transform: translate(calc(var(--i) * -12px), calc(var(--i) * -5px)) rotate(calc(6deg - var(--i) * 8deg)) scale(.94); }
-  .stack-n { position: absolute; right: -6px; top: 6px; z-index: 5; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--maroon); color: #fff; font-size: 11px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
-  .stack:focus-visible { outline: 2px solid var(--maroon); outline-offset: 3px; border-radius: 10px; }
-  @media (hover: none) { .card { position: relative; } .card.has-stack { padding-bottom: 44px; } .stack { display: block; } }
+  .stack:active .stack-img { transform: translate(calc(var(--i) * -14px), calc(var(--i) * -6px)) rotate(calc(6deg - var(--i) * 8deg)) scale(.94); }
+  .stack:focus-visible { outline: 2px solid var(--maroon); outline-offset: 3px; border-radius: 12px; }
+  @media (hover: none) { .card { position: relative; } .card.has-stack { padding-bottom: 60px; } .stack { display: block; } }
 
+  /* The backdrop fades on its own layer, so the photo itself never fades: it grows out of the stack instead (see the app script) */
   .viewer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: rgba(24, 15, 10, calc(.86 * var(--drag, 1))); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-    opacity: 0; transition: opacity .25s ease; overscroll-behavior: contain; touch-action: none; }
-  .viewer.open { opacity: 1; }
+    overscroll-behavior: contain; touch-action: none; }
+  .viewer::before { content: ""; position: absolute; inset: 0; background: rgba(24, 15, 10, .86); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity .35s ease; }
+  .viewer.open::before { opacity: var(--drag, 1); }
   .viewer-close { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 2;
     width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .16); color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .viewer-close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-  .viewer-track { width: 100%; flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; touch-action: pan-x;
+  .viewer-close, .viewer-dots { opacity: 0; transition: opacity .25s ease; }
+  .viewer.open .viewer-close, .viewer.open .viewer-dots { opacity: 1; transition-delay: .12s; }
+  .viewer-track { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; touch-action: pan-x;
     scrollbar-width: none; -webkit-overflow-scrolling: touch; transition: transform .25s ease; }
   .viewer-track::-webkit-scrollbar { display: none; }
-  .viewer-slide { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; display: grid; place-items: center; padding: calc(56px + env(safe-area-inset-top, 0px)) 18px calc(56px + env(safe-area-inset-bottom, 0px)); }
-  .viewer-slide img { max-width: min(100%, 520px); max-height: 100%; width: auto; height: auto; object-fit: contain; background: #fff; border: 10px solid #fff; border-bottom-width: 34px; border-radius: 14px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, .45); transform: rotate(var(--tilt, 0deg)) scale(.9); opacity: 0; transition: transform .45s cubic-bezier(.3, 1.4, .5, 1), opacity .25s ease; }
-  .viewer.open .viewer-slide img { transform: rotate(var(--tilt, 0deg)); opacity: 1; }
+  .viewer-slide { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; display: grid; place-items: center; padding: calc(56px + env(safe-area-inset-top, 0px)) 0 calc(56px + env(safe-area-inset-bottom, 0px)); }
+  .viewer-slide img { box-sizing: border-box; width: min(80vw, 520px); height: auto; max-height: 100%; object-fit: contain; background: #fff; border: 10px solid #fff; border-bottom-width: 34px; border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .45); transform: rotate(var(--tilt, 0deg)); will-change: transform; }
   .viewer-dots { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; gap: 7px; pointer-events: none; }
   .viewer-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .35); transition: background .2s, transform .2s; }
   .viewer-dots i.on { background: #fff; transform: scale(1.25); }
-  @media (prefers-reduced-motion: reduce) { .viewer, .viewer-track, .viewer-slide img, .stack-img { transition: none !important; } .stack { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .viewer::before, .viewer-close, .viewer-dots, .viewer-track, .stack-img { transition: none !important; } .stack { animation: none; } }
 
   /* Polaroid that follows the pointer over cards that have a photo.
      Outer element glides after the cursor; inner card pops in with a springy scale. */
@@ -487,7 +497,7 @@ function card(c) {
   // On touch screens (no hover) a small tilted stack of the card's own photos opens a swipeable viewer
   const stack = photos.length ? `<button type="button" class="stack" aria-label="${esc(UI[lang].viewPhotos)} (${photos.length})">${
     photos.slice(0, 3).map((p, i) => `<span class="stack-img" style="--i:${i}"><img src="${esc(p)}" alt="" loading="lazy" draggable="false"></span>`).join("")
-  }${photos.length > 1 ? `<span class="stack-n" aria-hidden="true">${photos.length}</span>` : ""}</button>` : "";
+  }</button>` : "";
   return `<li class="card${photos.length ? " has-stack" : ""}" data-photos="${esc(JSON.stringify(photos))}">
     ${icon}
     <div class="card-body">
@@ -578,7 +588,7 @@ function startPhys() {
   ]);
   // The page's own components are solid: chips bounce off them and move freely everywhere else. Positions are kept
   // relative to the chip box, so scrolling never moves them; they are rebuilt whenever the page changes size.
-  const obst = [];
+  const obst = [], OBST = 0x0002;
   const syncObstacles = () => {
     Composite.remove(engine.world, obst); obst.length = 0;
     const br = box.getBoundingClientRect();
@@ -588,7 +598,7 @@ function startPhys() {
       let x = r.left - br.left, y = r.top - br.top, w = r.width, h = r.height;
       if (y + h < -up || y > H || x + w < 0 || x > W) return;
       if (h < 36) { y -= (36 - h) / 2; h = 36; }   // never thinner than a fast chip's step, so nothing slips through
-      obst.push(Bodies.rectangle(x + w / 2, y + h / 2, w, h, { isStatic: true, restitution: 0.55, friction: 0.3, chamfer: { radius: Math.min(20, h / 2 - 1, w / 2 - 1) } }));
+      obst.push(Bodies.rectangle(x + w / 2, y + h / 2, w, h, { isStatic: true, collisionFilter: { category: OBST }, restitution: 0.55, friction: 0.3, chamfer: { radius: Math.min(20, h / 2 - 1, w / 2 - 1) } }));
     });
     Composite.add(engine.world, obst);
   };
@@ -607,7 +617,7 @@ function startPhys() {
       restitution: 0.2, friction: 0.6, frictionStatic: 0.9, frictionAir: 0.015, slop: 0.02,
       angle: (s.a * Math.PI) / 180
     });
-    return { el, b, w, h };
+    return { el, b, w, h, still: 0, ghost: false };
   });
   Composite.add(engine.world, items.map(it => it.b));
 
@@ -620,9 +630,16 @@ function startPhys() {
       const p = drag.it.b.position, dx = drag.target.x - p.x, dy = drag.target.y - p.y, d = Math.hypot(dx, dy), k = d > 40 ? 40 / d : 1;
       drag.c.pointA = { x: p.x + dx * k, y: p.y + dy * k };
     }
-    items.forEach(({ b, w, h }) => {
+    items.forEach(it => {
+      const { b, w, h } = it;
       const v = b.velocity, sp = Math.hypot(v.x, v.y);
       if (sp > MAX_V) Body.setVelocity(b, { x: (v.x / sp) * MAX_V, y: (v.y / sp) * MAX_V });
+      // A chip that has come to rest on a page component (above the chip box) slips through it after a moment
+      // and falls back to the pile, so chips never pile up over the content
+      if (it.ghost) { if (b.bounds.min.y > -20) { it.ghost = false; b.collisionFilter.mask = -1; } }
+      else if (b.position.y < 0 && !(drag && drag.it === it) && sp < 0.6) {
+        if (++it.still > 40) { it.ghost = true; it.still = 0; b.collisionFilter.mask = ~OBST; Sleeping.set(b, false); }
+      } else it.still = 0;
       const r = Math.max(w, h) / 2;
       const { x, y } = b.position;
       if (x < -r || x > W + r || y < -up - r || y > H + r) {
@@ -636,7 +653,7 @@ function startPhys() {
   // Pointer dragging (mouse and touch): pin the grabbed point of a chip to the pointer with a springy constraint
   const abort = new AbortController();
   const on = { signal: abort.signal };
-  let drag = null;
+  let drag = null, hold = null;
   const toLocal = e => {
     const r = box.getBoundingClientRect();
     // keep the pull point inside the frame so a chip pressed against an edge does not shake
@@ -648,26 +665,44 @@ function startPhys() {
     drag.it.el.classList.remove("dragging");
     drag = null;
   };
+  const grab = (it, e) => {
+    if (!phys || phys.engine !== engine) return;   // a hold that outlived a restart
+    phys.wake();
+    const pt = toLocal(e);
+    Sleeping.set(it.b, false);
+    const c = Constraint.create({ pointA: pt, bodyB: it.b, pointB: Vector.sub(pt, it.b.position), stiffness: 0.2, damping: 0.1, length: 0 });
+    Composite.add(engine.world, c);
+    drag = { c, it, id: e.pointerId, target: pt };
+    it.el.classList.add("dragging");
+    try { it.el.setPointerCapture(e.pointerId); } catch (err) {}
+    if (e.pointerType === "touch" && navigator.vibrate) try { navigator.vibrate(8); } catch (err) {}
+  };
+  const dropHold = id => { if (hold && (id === undefined || hold.id === id)) { clearTimeout(hold.t); hold = null; } };
   items.forEach(it => {
     it.el.addEventListener("pointerdown", e => {
       if (e.button !== undefined && e.button > 0) return;
-      e.preventDefault();
-      if (drag) return;
-      phys.wake();
-      const pt = toLocal(e);
-      Sleeping.set(it.b, false);
-      const c = Constraint.create({ pointA: pt, bodyB: it.b, pointB: Vector.sub(pt, it.b.position), stiffness: 0.2, damping: 0.1, length: 0 });
-      Composite.add(engine.world, c);
-      drag = { c, it, id: e.pointerId, target: pt };
-      it.el.classList.add("dragging");
-      try { it.el.setPointerCapture(e.pointerId); } catch (err) {}
+      if (drag || hold) return;
+      if (e.pointerType !== "touch") { e.preventDefault(); grab(it, e); return; }
+      // Touch: a quick up/down swipe scrolls the page as usual (chips cover much of the bottom of the screen);
+      // resting the finger a moment, or moving sideways, picks the chip up
+      const h = { it, id: e.pointerId, x: e.clientX, y: e.clientY, last: e };
+      h.t = setTimeout(() => { if (hold === h) { hold = null; grab(h.it, h.last); } }, 170);
+      hold = h;
     }, on);
     it.el.addEventListener("pointermove", e => {
+      if (hold && hold.id === e.pointerId) {
+        hold.last = e;
+        const dx = e.clientX - hold.x, dy = e.clientY - hold.y;
+        if (Math.hypot(dx, dy) > 8) { const h = hold; dropHold(); if (Math.abs(dx) > Math.abs(dy)) grab(h.it, e); }
+        return;
+      }
       if (drag && drag.id === e.pointerId) { drag.target = toLocal(e); Sleeping.set(it.b, false); }
     }, on);
-    ["pointerup", "pointercancel", "lostpointercapture"].forEach(t => it.el.addEventListener(t, e => endDrag(e.pointerId), on));
+    // once a chip is held, the finger moves the chip, not the page
+    it.el.addEventListener("touchmove", e => { if (drag && drag.it === it) e.preventDefault(); }, { passive: false, signal: abort.signal });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(t => it.el.addEventListener(t, e => { dropHold(e.pointerId); endDrag(e.pointerId); }, on));
   });
-  window.addEventListener("blur", () => endDrag(), on);
+  window.addEventListener("blur", () => { dropHold(); endDrag(); }, on);
 
   // Write transforms only for chips that moved; stop the engine once every chip has come to rest
   const draw = all => items.forEach(it => {
@@ -680,7 +715,7 @@ function startPhys() {
   const wake = () => { if (phys && !phys.running) { Runner.run(runner, engine); phys.running = true; } };
   Events.on(engine, "afterUpdate", () => {
     draw(false);
-    if (!drag && items.every(it => it.b.isSleeping)) { Runner.stop(runner); phys.running = false; }
+    if (!drag && items.every(it => it.b.isSleeping && !it.ghost && it.b.position.y >= 0)) { Runner.stop(runner); phys.running = false; }
   });
   Runner.run(runner, engine);
   phys = { engine, runner, abort, items, running: true, wake };
@@ -828,13 +863,32 @@ window.addEventListener("scroll", () => {
   }
 }, { passive: true });
 /* ---------- Photo viewer (touch screens) ----------
-   Tapping a card's photo stack opens its photos full screen: swipe sideways to change photo,
-   swipe down, tap outside the photo, press Back or the close button to leave. Photos only, no captions. */
+   Tapping a card's photo stack lifts the top photo out of the stack and grows it to 80% of the screen width;
+   swipe sideways to change photo. Swipe down, tap outside the photo, press Back or the close button to leave:
+   the photo shrinks back into its place in the stack. Photos only, no captions. */
 const viewer = document.getElementById("viewer"), vTrack = document.getElementById("viewer-track"), vDots = document.getElementById("viewer-dots");
 const vClose = viewer.querySelector(".viewer-close");
-let viewerOpen = false, vFrom = null, vPushed = false;
-function openViewer(photos, from) {
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
+const MORPH_IN = "transform .62s cubic-bezier(.2, 1.3, .35, 1)", MORPH_OUT = "transform .38s cubic-bezier(.5, 0, .25, 1)";
+let viewerOpen = false, vFrom = null, vPushed = false, vHidden = null, vDone = null;
+const thumbsOf = from => (from ? [...from.querySelectorAll(".stack-img")] : []);
+/* transform that puts the photo exactly over a stack thumbnail (centre, width and tilt) */
+function overThumb(img, thumb) {
+  const t = thumb.getBoundingClientRect(), r = img.getBoundingClientRect();
+  if (!t.width || !img.offsetWidth) return "";
+  const rot = 4 - 6 * (+thumb.style.getPropertyValue("--i") || 0);   // the thumbnail's own tilt, as in the stylesheet
+  return `translate(${(t.left + t.width / 2 - r.left - r.width / 2).toFixed(1)}px, ${(t.top + t.height / 2 - r.top - r.height / 2).toFixed(1)}px) scale(${(thumb.offsetWidth / img.offsetWidth).toFixed(4)}) rotate(${rot}deg)`;
+}
+function finishClose() {
+  if (!vDone) return;
+  clearTimeout(vDone); vDone = null;
+  viewer.hidden = true;
+  vTrack.style.transition = vTrack.style.transform = "";
+  if (vHidden) { vHidden.style.visibility = ""; vHidden = null; }
+}
+async function openViewer(photos, from) {
   if (viewerOpen || !photos.length) return;
+  finishClose();
   viewerOpen = true; vFrom = from;
   vClose.setAttribute("aria-label", UI[lang].close);
   vTrack.replaceChildren(...photos.map((p, i) => {
@@ -847,18 +901,43 @@ function openViewer(photos, from) {
   }));
   vDots.replaceChildren(...photos.map(() => document.createElement("i")));
   vDots.hidden = photos.length < 2;
-  vTrack.scrollLeft = 0; markDot();
-  viewer.hidden = false; void viewer.offsetWidth; viewer.classList.add("open");
   document.documentElement.style.overflow = "hidden";
   try { history.pushState({ viewer: 1 }, ""); vPushed = true; } catch (e) { vPushed = false; }
+  const img = vTrack.querySelector("img"), thumb = thumbsOf(from)[0];
+  // the photo needs its real size before it can grow out of the thumbnail
+  try { await Promise.race([img.decode(), new Promise(r => setTimeout(r, 300))]); } catch (e) {}
+  if (!viewerOpen) return;
+  viewer.hidden = false;
+  vTrack.scrollLeft = 0; markDot();
+  const start = thumb && !calm.matches ? overThumb(img, thumb) : "";
+  if (start) {
+    img.style.transition = "none"; img.style.transform = start;
+    thumb.style.visibility = "hidden"; vHidden = thumb;   // the photo has left the stack
+    void img.offsetWidth;
+    img.style.transition = MORPH_IN; img.style.transform = "";
+  }
+  void viewer.offsetWidth; viewer.classList.add("open");
   vClose.focus({ preventScroll: true });
 }
 function hideViewer() {
   if (!viewerOpen) return;
   viewerOpen = false;
-  viewer.classList.remove("open"); vTrack.style.transform = ""; viewer.style.removeProperty("--drag");
+  const k = Math.max(0, Math.round(vTrack.scrollLeft / (vTrack.clientWidth || 1)));
+  const img = vTrack.children[k] && vTrack.children[k].querySelector("img");
+  const thumbs = thumbsOf(vFrom && vFrom.isConnected ? vFrom : null), thumb = thumbs[k] || thumbs[0];
+  viewer.classList.remove("open"); viewer.style.removeProperty("--drag");
   document.documentElement.style.overflow = "";
-  setTimeout(() => { if (!viewerOpen) viewer.hidden = true; }, 260);
+  const end = img && thumb && !calm.matches ? overThumb(img, thumb) : "";
+  if (end) {
+    // shrink back into the stack, from wherever the finger left it
+    if (vHidden && vHidden !== thumb) vHidden.style.visibility = "";
+    vHidden = thumb;
+    img.style.transition = MORPH_OUT; img.style.transform = end;
+    vDone = setTimeout(finishClose, 400);
+  } else {
+    if (img) { img.style.transition = "opacity .25s ease"; img.style.opacity = "0"; }
+    vDone = setTimeout(finishClose, 260);
+  }
   if (vFrom && vFrom.isConnected) vFrom.focus({ preventScroll: true });
 }
 function closeViewer() { if (vPushed && history.state && history.state.viewer) history.back(); else hideViewer(); vPushed = false; }
