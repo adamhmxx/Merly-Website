@@ -337,10 +337,11 @@
   .polaroid-ph svg { width: 46%; height: 46%; fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
     filter: drop-shadow(0 2px 3px rgba(31, 21, 15, .18)); }
   .polaroid-ph svg > * { stroke-dasharray: 1 2; }
-  /* Trail pieces (cards with several photos): smaller, no gliding, and they drift away instead of shrinking */
+  /* Trail pieces (cards with several photos): smaller and without gliding */
   .polaroid.trail { width: 150px; transition: none; will-change: transform; }
   .polaroid.trail .polaroid-in { padding: 8px 8px 26px; border-radius: 14px; }
-  .polaroid.trail.out .polaroid-in { opacity: 0; transform: rotate(var(--r)) translateY(10px) scale(.92); transition: opacity .55s ease, transform .55s ease; }
+  /* leaves the way it arrived, reversed: shrinks and tilts away, no fade */
+  .polaroid.trail.out .polaroid-in { opacity: 1; transform: rotate(calc(var(--r) - 14deg)) scale(0); transition: transform .22s ease-in; }
   .polaroid img {
     display: block;
     width: 100%;
@@ -549,6 +550,7 @@ function stopPhys() {
   if (!phys) return;
   phys.abort.abort();
   phys.io && phys.io.disconnect();
+  phys.ro && phys.ro.disconnect();
   Matter.Runner.stop(phys.runner);
   Matter.Composite.clear(phys.engine.world, false);
   Matter.Engine.clear(phys.engine);
@@ -574,6 +576,24 @@ function startPhys() {
     Bodies.rectangle(-wall / 2, (H - up) / 2, wall, H + up + wall * 2, { isStatic: true }),
     Bodies.rectangle(W + wall / 2, (H - up) / 2, wall, H + up + wall * 2, { isStatic: true })
   ]);
+  // The page's own components are solid: chips bounce off them and move freely everywhere else. Positions are kept
+  // relative to the chip box, so scrolling never moves them; they are rebuilt whenever the page changes size.
+  const obst = [];
+  const syncObstacles = () => {
+    Composite.remove(engine.world, obst); obst.length = 0;
+    const br = box.getBoundingClientRect();
+    document.querySelectorAll(".lang, .photo, .hello, .headline, .sub, .social a, .cv h2, .card").forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      let x = r.left - br.left, y = r.top - br.top, w = r.width, h = r.height;
+      if (y + h < -up || y > H || x + w < 0 || x > W) return;
+      if (h < 36) { y -= (36 - h) / 2; h = 36; }   // never thinner than a fast chip's step, so nothing slips through
+      obst.push(Bodies.rectangle(x + w / 2, y + h / 2, w, h, { isStatic: true, restitution: 0.55, friction: 0.3, chamfer: { radius: Math.min(20, h / 2 - 1, w / 2 - 1) } }));
+    });
+    Composite.add(engine.world, obst);
+  };
+  syncObstacles();
+
   // Lay the chips out as in the design, centred in a 680px column; on narrow screens drop them in a loose stack
   const colW = Math.min(W, 680), colX = (W - colW) / 2, narrow = W < 560;
   const items = [...box.querySelectorAll(".chip")].map((el, i) => {
@@ -592,8 +612,14 @@ function startPhys() {
   Composite.add(engine.world, items.map(it => it.b));
 
   // Safety net: cap speed so nothing tunnels, and put back anything that still escaped the frame
-  const MAX_V = 45;
+  const MAX_V = 34;
   Events.on(engine, "beforeUpdate", () => {
+    // The pull point stays within a short reach of the chip (the solver runs several passes a step), so a far-away pointer drags it along firmly
+    // instead of yanking it through whatever is in the way
+    if (drag) {
+      const p = drag.it.b.position, dx = drag.target.x - p.x, dy = drag.target.y - p.y, d = Math.hypot(dx, dy), k = d > 40 ? 40 / d : 1;
+      drag.c.pointA = { x: p.x + dx * k, y: p.y + dy * k };
+    }
     items.forEach(({ b, w, h }) => {
       const v = b.velocity, sp = Math.hypot(v.x, v.y);
       if (sp > MAX_V) Body.setVelocity(b, { x: (v.x / sp) * MAX_V, y: (v.y / sp) * MAX_V });
@@ -632,12 +658,12 @@ function startPhys() {
       Sleeping.set(it.b, false);
       const c = Constraint.create({ pointA: pt, bodyB: it.b, pointB: Vector.sub(pt, it.b.position), stiffness: 0.2, damping: 0.1, length: 0 });
       Composite.add(engine.world, c);
-      drag = { c, it, id: e.pointerId };
+      drag = { c, it, id: e.pointerId, target: pt };
       it.el.classList.add("dragging");
       try { it.el.setPointerCapture(e.pointerId); } catch (err) {}
     }, on);
     it.el.addEventListener("pointermove", e => {
-      if (drag && drag.id === e.pointerId) { drag.c.pointA = toLocal(e); Sleeping.set(it.b, false); }
+      if (drag && drag.id === e.pointerId) { drag.target = toLocal(e); Sleeping.set(it.b, false); }
     }, on);
     ["pointerup", "pointercancel", "lostpointercapture"].forEach(t => it.el.addEventListener(t, e => endDrag(e.pointerId), on));
   });
@@ -658,6 +684,12 @@ function startPhys() {
   });
   Runner.run(runner, engine);
   phys = { engine, runner, abort, items, running: true, wake };
+  const page = document.querySelector(".page");
+  if (page && "ResizeObserver" in window) {
+    let raf = 0;
+    phys.ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (phys) { syncObstacles(); wake(); } }); });
+    phys.ro.observe(page);
+  }
 
   // Pause the simulation while the chips are off screen
   if ("IntersectionObserver" in window) {
@@ -728,8 +760,8 @@ function placePolaroid(x, y) {
   pol.style.setProperty("--y", py + "px");
 }
 /* Several photos on one card: instead of one polaroid, a trail of them is scattered along the cursor's path.
-   Each pops in with the same springy scale, rests a moment, then drifts away. A small pool is recycled. */
-const TRAIL_N = 9, TRAIL_GAP = 96, TRAIL_EVERY = 100, TRAIL_LIFE = 850;
+   Each pops in with the same springy scale, rests a moment, then pops out the same way (no fading). A small pool is recycled. */
+const TRAIL_N = 5, TRAIL_GAP = 130, TRAIL_EVERY = 140, TRAIL_LIFE = 700;
 const trail = { pool: [], n: -1, card: null, photos: [], idx: -1, lx: 0, ly: 0, t0: 0, z: 30, h: 0, w: 150, seen: new Set() };
 function trailSpawn(x, y) {
   if (!trail.pool.length) for (let k = 0; k < TRAIL_N; k++) {
