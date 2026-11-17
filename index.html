@@ -761,7 +761,7 @@ function placePolaroid(x, y) {
 }
 /* Several photos on one card: instead of one polaroid, a trail of them is scattered along the cursor's path.
    Each pops in with the same springy scale, rests a moment, then pops out the same way (no fading). A small pool is recycled. */
-const TRAIL_N = 5, TRAIL_GAP = 130, TRAIL_EVERY = 140, TRAIL_LIFE = 700;
+const TRAIL_N = 4, TRAIL_GAP = 170, TRAIL_EVERY = 380, TRAIL_LIFE = 800;
 const trail = { pool: [], n: -1, card: null, photos: [], idx: -1, lx: 0, ly: 0, t0: 0, z: 30, h: 0, w: 150, seen: new Set() };
 function trailSpawn(x, y) {
   if (!trail.pool.length) for (let k = 0; k < TRAIL_N; k++) {
