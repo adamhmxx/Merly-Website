@@ -285,7 +285,8 @@
   }));
   const shown = p => localPrev.get(p) || p;     // what to display for a stored photo value
 
-  /* ---------- photos: shrink in the browser, then upload through the CMS ---------- */
+  /* ---------- photos: shrink in the browser, then upload through the CMS ----------
+     Sizes match what the site shows: card photos up to 1200px (full-screen on phones and tablets), the profile photo 320px (shown at 80px) */
   async function shrink(file, maxSide) {
     const bmp = await createImageBitmap(file);
     const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
@@ -319,7 +320,7 @@
   function photosEditor(item) {
     const wrap = mk("div", { class: "photos" });
     const draw = () => {
-      const picker = filePicker(true, f => uploadPhoto(f, 1600, p => { item.photos = item.photos || []; item.photos.push(p); draw(); changed(); }));
+      const picker = filePicker(true, f => uploadPhoto(f, 1200, p => { item.photos = item.photos || []; item.photos.push(p); draw(); changed(); }));
       wrap.replaceChildren(
         ...(item.photos || []).map((p, i) => mk("div", { class: "thumb" },
           mk("img", { src: shown(p), alt: "" }),
@@ -396,7 +397,7 @@
   }
   function profileSection() {
     const img = mk("img", { src: shown(draft.profilePhoto || ""), alt: "" });
-    const picker = filePicker(false, f => uploadPhoto(f, 800, p => { draft.profilePhoto = p; img.src = shown(p); changed(); }));
+    const picker = filePicker(false, f => uploadPhoto(f, 320, p => { draft.profilePhoto = p; img.src = shown(p); changed(); }));
     return mk("details", { open: true }, mk("summary", {}, "Profil dan judul"),
       mk("div", { class: "sec" },
         mk("div", { class: "profile" }, img, picker, mk("button", { type: "button", class: "btn", onclick: () => picker.click() }, "Ganti foto profil")),
