@@ -203,7 +203,7 @@
     github_read_failed: "Tidak bisa membaca data dari GitHub. Cek token dan nama repo di Vercel.",
     github_write_failed: "GitHub menolak penyimpanan. Cek izin token (Contents: Read and write).",
     github_failed: "Terjadi masalah di GitHub. Coba lagi sebentar lagi.",
-    conflict: "Ada perubahan lain yang baru tersimpan. Muat ulang halaman ini lalu ulangi.",
+    conflict: "GitHub sedang sibuk menyimpan perubahan lain. Perubahanmu masih aman di halaman ini, klik Simpan lagi sebentar lagi.",
     too_large: "Konten atau foto terlalu besar.",
     unsupported_type: "Format foto tidak didukung. Pakai JPG, PNG, WEBP, atau GIF.",
     invalid_content: "Konten tidak valid, perubahan tidak tersimpan."
@@ -233,10 +233,14 @@
     });
     let j = {};
     try { j = await r.json(); } catch (e) {}
-    if (!r.ok) throw Object.assign(new Error(j.error || "http_" + r.status), { status: r.status, code: j.error });
+    if (!r.ok) throw Object.assign(new Error(j.error || "http_" + r.status), { status: r.status, code: j.error, gh: j.status });
     return j;
   }
-  const errText = e => ERR[e && e.code] || (e && e.status === 404 ? "Fitur CMS belum aktif di server ini." : "Gagal, coba lagi sebentar lagi.");
+  const errText = e => {
+    if (e && e.code === "github_write_failed" && (e.gh === 409 || e.gh === 422)) return ERR.conflict;   // a busy moment, not a token problem
+    return ERR[e && e.code] || (e && e.status === 404 ? "Fitur CMS belum aktif di server ini."
+      : `Gagal (kode ${e && e.status || "jaringan"}). Perubahanmu masih aman di halaman ini, coba klik Simpan lagi.`);
+  };
 
   /* ---------- live preview ---------- */
   const pv = $("pv");
@@ -251,8 +255,13 @@
   /* ---------- status and dirty state ---------- */
   const status = (text, kind) => { const s = $("status"); s.textContent = text; s.className = "status" + (kind ? " " + kind : ""); };
   const isDirty = () => draft && JSON.stringify(draft) !== saved;
+  /* Every unsaved change is also kept in this browser, so closing the tab, reloading or a phone killing the page
+     never loses work: on the next login the editor offers to bring it back. Cleared once a save succeeds. */
+  const BACKUP = "cms-draft-backup";
+  const backup = () => { try { if (isDirty()) localStorage.setItem(BACKUP, JSON.stringify({ at: Date.now(), base: saved, draft })); else localStorage.removeItem(BACKUP); } catch (e) {} };
   function changed() {
     pushPreview();
+    backup();
     $("save").disabled = !isDirty() || busy > 0;
     if (isDirty()) status("Ada perubahan yang belum disimpan.");
     else status("Tidak ada perubahan.");
@@ -298,8 +307,12 @@
     return new Promise(r => c.toBlob(r, "image/jpeg", 0.86));
   }
   const readDataUrl = blob => new Promise((res, rej) => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = rej; f.readAsDataURL(blob); });
-  async function uploadPhoto(file, maxSide, onDone) {
-    busy++; changed(); status("Mengunggah foto…");
+  let upQueue = Promise.resolve();
+  function uploadPhoto(file, maxSide, onDone) {
+    busy++; changed(); status("Mengunggah foto…");   // counted at once, so Simpan waits for the whole queue
+    upQueue = upQueue.then(() => uploadOne(file, maxSide, onDone));
+  }
+  async function uploadOne(file, maxSide, onDone) {
     try {
       if (!/^image\//.test(file.type)) throw Object.assign(new Error("unsupported_type"), { code: "unsupported_type" });
       const blob = await shrink(file, maxSide);
@@ -307,7 +320,7 @@
       const res = await api("/api/upload", { data: dataUrl.split(",")[1] });
       localPrev.set(res.path, dataUrl);
       onDone(res.path);
-      status("Foto terunggah. Klik Simpan supaya dipakai di website.", "ok");
+      status(busy > 1 ? "Mengunggah foto…" : "Foto terunggah. Klik Simpan supaya dipakai di website.", busy > 1 ? "" : "ok");
     } catch (e) { status(errText(e), "err"); }
     finally { busy--; $("save").disabled = !isDirty() || busy > 0; }
   }
@@ -434,6 +447,7 @@
       const snapshot = JSON.stringify(draft);
       await api("/api/save", { content: draft });
       saved = snapshot;
+      try { localStorage.removeItem(BACKUP); } catch (x) {}
       changed();
       status("Tersimpan. Website diperbarui dalam sekitar 1 menit.", "ok");
     } catch (e) {
@@ -448,9 +462,18 @@
   async function enter() {
     const data = await api("/api/content");
     draft = data.content; saved = JSON.stringify(draft);
+    let restored = false;
+    try {
+      const b = JSON.parse(localStorage.getItem(BACKUP) || "null");
+      if (b && b.draft && JSON.stringify(b.draft) !== saved) {
+        const when = new Date(b.at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+        if (window.confirm(`Ada perubahan yang belum tersimpan dari ${when}. Pulihkan sekarang?`)) { draft = b.draft; restored = true; }
+        else localStorage.removeItem(BACKUP);
+      }
+    } catch (e) {}
     $("login").hidden = true; $("app").hidden = false;
     buildForm(); changed();
-    status("Tidak ada perubahan.");
+    status(restored ? "Perubahan sebelumnya dipulihkan. Klik Simpan supaya dipakai di website." : "Tidak ada perubahan.");
   }
   $("login-form").addEventListener("submit", async e => {
     e.preventDefault();
