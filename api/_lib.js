@@ -92,4 +92,15 @@ function cleanContent(c) {
   return out;
 }
 
-module.exports = { REPO, BRANCH, send, authorized, configured, gh, readIndex, extractContent, injectContent, cleanContent };
+/* GitHub refuses a commit when another one lands on the branch at the same moment (409/422), which happens
+   when several photos are uploaded at once or a save follows an upload. Such a refusal is retried a few times
+   with a growing pause; `attempt` runs the whole read-modify-write again so it always starts from the latest state. */
+async function withRetry(attempt, tries = 5) {
+  for (let i = 0; ; i++) {
+    const r = await attempt();
+    if (r.ok || (r.status !== 409 && r.status !== 422) || i >= tries - 1) return r;
+    await sleep(350 * (i + 1) + Math.random() * 250);
+  }
+}
+
+module.exports = { REPO, BRANCH, send, sleep, authorized, configured, gh, withRetry, readIndex, extractContent, injectContent, cleanContent };
