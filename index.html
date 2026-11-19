@@ -7,7 +7,6 @@
 <meta name="description" content="Arvinna Ryandita Merly: teacher, educator and public relations. Education, experience and skills.">
 <meta property="og:title" content="Arvinna Ryandita Merly">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23370101'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' fill='%23fcfaf6' font-family='Georgia,serif' font-style='italic'%3EA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
@@ -548,6 +547,29 @@ function card(c) {
   </li>`;
 }
 
+/* The browser tab and home-screen icon show her photo: a round crop for the tab, a square one for the
+   home screen, redrawn from the profile photo whenever it changes in the CMS */
+function setTabIcon(src) {
+  if (!src) return;
+  const img = new Image();
+  img.onload = () => {
+    const draw = (size, round) => {
+      const c = document.createElement("canvas"), x = c.getContext("2d"), s = Math.min(img.width, img.height);
+      c.width = c.height = size; x.imageSmoothingQuality = "high";
+      if (round) { x.beginPath(); x.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); x.clip(); }
+      x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      return round ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.9);   // only the round one needs transparency
+    };
+    const link = (rel, href) => {
+      let l = document.querySelector(`link[rel="${rel}"]`);
+      if (!l) { l = document.createElement("link"); l.rel = rel; document.head.append(l); }
+      l.href = href;
+    };
+    try { link("icon", draw(64, true)); link("apple-touch-icon", draw(180, false)); } catch (e) {}
+  };
+  img.src = src;
+}
+
 /* render() only touches the DOM for what actually changed, so the live preview and language switch never
    rebuild (or restart the animation of) parts that are identical. Returns true when the chips changed. */
 let renderGen = 0;
@@ -556,7 +578,7 @@ function paint(key, val, apply) { if (painted[key] === val) return false; painte
 function render(state = STATE) {
   const t = UI[lang], links = state.links || {};
   document.documentElement.lang = lang;
-  paint("photo", photoSrc(state.profilePhoto) || "", v => { $("#profile-img").src = v; });
+  paint("photo", photoSrc(state.profilePhoto) || "", v => { $("#profile-img").src = v; setTabIcon(v); });
   paint("hello", L(state.hello), v => { $("#t-hello").textContent = v; });
   paint("headline", `${esc(L(state.line1))} <span class="shine">${esc(L(state.shine))}</span><br><em>${esc(L(state.line2))}</em>`, v => { $("#t-headline").innerHTML = v; });
   paint("sub", L(state.sub), v => { $("#t-sub").textContent = v; });
