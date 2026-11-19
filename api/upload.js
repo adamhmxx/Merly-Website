@@ -1,5 +1,5 @@
 /* POST /api/upload {data: base64}: stores a photo in the repo under /uploads and returns its path */
-const { send, authorized, configured, gh, BRANCH } = require("./_lib");
+const { send, authorized, configured, gh, withRetry, BRANCH } = require("./_lib");
 
 function kind(buf) {
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8) return "jpg";
@@ -21,9 +21,9 @@ module.exports = async (req, res) => {
   if (!ext) return send(res, 415, { error: "unsupported_type" });
   const name = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.${ext}`;
   try {
-    const r = await gh(`contents/uploads/${name}`, { method: "PUT", body: {
+    const r = await withRetry(() => gh(`contents/uploads/${name}`, { method: "PUT", body: {
       message: "Upload photo (CMS)", content: buf.toString("base64"), branch: BRANCH
-    } });
+    } }));
     if (!r.ok) return send(res, 502, { error: "github_write_failed", status: r.status });
     send(res, 200, { path: "/uploads/" + name });
   } catch (e) {
